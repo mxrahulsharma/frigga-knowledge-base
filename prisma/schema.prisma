@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String              @id @default(cuid())
+  name             String?
+  email            String?             @unique
+  emailVerified    DateTime?
+  image            String?
+  password         String?
+
+  // 🔐 Password Reset
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
+  // NextAuth
+  accounts         Account[]
+  sessions         Session[]
+
+  // App Relationships
+  documents         Document[]
+  permissions       DocumentPermission[]
+  createdVersions   DocumentVersion[] @relation("author")
+  notifications     Notification[]
+}
+
+model Document {
+  id         String     @id @default(cuid())
+  title      String
+  content    Json?       // TipTap JSON output
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  visibility Visibility  @default(PRIVATE)
+
+  authorId   String
+  author     User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  versions    DocumentVersion[]
+  permissions DocumentPermission[]
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+model DocumentPermission {
+  id         String            @id @default(cuid())
+  documentId String
+  userId     String
+  level      PermissionLevel
+
+  document   Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+}
+
+enum PermissionLevel {
+  VIEW
+  EDIT
+}
+
+model DocumentVersion {
+  id         String     @id @default(cuid())
+  documentId String
+  content    Json?
+  createdAt  DateTime   @default(now())
+
+  authorId   String
+  author     User       @relation("author", fields: [authorId], references: [id])
+  document   Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String
+  message    String
+  isRead     Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+}
+
+model Account {
+  id                 String   @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id            String   @id @default(cuid())
+  sessionToken  String   @unique
+  userId        String
+  expires       DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
